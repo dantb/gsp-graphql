@@ -16,11 +16,8 @@ trait GenericMappingLike[F[_]] extends ScalaVersionSpecificGenericMappingLike[F]
   
   type CursorBuilder[T] = edu.gemini.grackle.generic.CursorBuilder[T]
 
-  def genericCursor[T](path: Path, env: Env, t: T)(implicit cb: => CursorBuilder[T]): Result[Cursor] =
-    if(path.isRoot)
-      cb.build(Context(path.rootTpe), t, None, env)
-    else
-      DeferredCursor(path, (context, parent) => cb.build(context, t, Some(parent), env)).rightIor
+  def genericCursor[T](path: Path, env: Env, t: T)(implicit cb: => CursorBuilder[T]): Result[Cursor] = 
+    GenericMapping.genericCursor(path, env, t)(cb)
 
   override def mkCursorForField(parent: Cursor, fieldName: String, resultName: Option[String]): Result[Cursor] = {
     val context = parent.context
@@ -55,4 +52,12 @@ trait GenericMappingLike[F[_]] extends ScalaVersionSpecificGenericMappingLike[F]
     def transformFieldNames(f: String => String): ObjectCursorBuilder[T]
     def transformField[U](fieldName: String)(f: T => Result[U])(implicit cb: => CursorBuilder[U]): ObjectCursorBuilder[T]
   }
+}
+
+object GenericMapping {
+  def genericCursor[T](path: Path, env: Env, t: T)(implicit cb: => CursorBuilder[T]): Result[Cursor] =
+    if(path.isRoot)
+      cb.build(Context(path.rootTpe), t, None, env)
+    else
+      DeferredCursor(path, (context, parent) => cb.build(context, t, Some(parent), env)).rightIor
 }
