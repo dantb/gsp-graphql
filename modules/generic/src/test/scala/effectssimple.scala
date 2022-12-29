@@ -86,9 +86,6 @@ final class BlogMappingSpec extends CatsSuite {
       }
     """
 
-    val blogQuery =
-      EffectfulQuery.arg1[IO, String, Option[Blog]]("blog", blogProcessor, "id", { case Value.IDValue(a) => a })
-
     val extractDateTime: PartialFunction[Value, Option[ZonedDateTime]] = PartialFunction
       .fromFunction[Value, Option[ZonedDateTime]] {
         case Value.StringValue(a) => Try(ZonedDateTime.parse(a)).toOption
@@ -109,6 +106,10 @@ final class BlogMappingSpec extends CatsSuite {
       extractDateTime,
       extractIds
     )
+
+    // val blogsQuery: EffectfulQuery[IO] = EffectfulQueryBuilder.noArgs[IO]("blogs")
+
+    val blogQuery: EffectfulQuery[IO] = EffectfulQueryBuilder.noArgs[IO]("blog").withString("id").build(blogProcessor(_))
 
     val thingy: GenericMapping[IO] =
       EffectfulMappingBuilder
