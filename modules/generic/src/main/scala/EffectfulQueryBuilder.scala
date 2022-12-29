@@ -9,6 +9,8 @@ import cats._
 import cats.syntax.all._
 
 import scala.reflect.ClassTag
+import scala.util.Try
+import java.time.ZonedDateTime
 
 final case class Argument[A](name: String, extractor: PartialFunction[Value, A])
 
@@ -23,6 +25,8 @@ final case class EffectfulQueryBuilder0[F[_]](query: String, argExtractors: List
   def withString(name: String) = withArg[String](name, { case Value.StringValue(s) => s })
   def withFloat(name: String)  = withArg[Double](name, { case Value.FloatValue(s) => s })
   def withBool(name: String)   = withArg[Boolean](name, { case Value.BooleanValue(s) => s })
+  def withCustomArg[Arg: FromQueryValue: ClassTag](name: String) =
+    withArg[Arg](name, FromQueryValue.toPartialFunction[Arg])
   def withArg[Arg: ClassTag](name: String, extractor: PartialFunction[Value, Arg]): EffectfulQueryBuilderArg1[F, Arg] =
     EffectfulQueryBuilderArg1(query, Argument(name, extractor))
 
@@ -35,6 +39,31 @@ final case class EffectfulQueryBuilder0[F[_]](query: String, argExtractors: List
 
 }
 
+trait FromQueryValue[A] {
+  def attempt(value: Value): Option[A]
+  final def andThen[B](f: A => Option[B]): FromQueryValue[B] = attempt(_).flatMap(f)
+}
+
+object FromQueryValue {
+  def apply[A: FromQueryValue] = implicitly[FromQueryValue[A]]
+  def toPartialFunction[A: FromQueryValue]: PartialFunction[Value, A] =
+    PartialFunction.fromFunction(FromQueryValue[A].attempt).andThen { case Some(a) => a }
+
+  implicit val string: FromQueryValue[String] = {
+    case Value.StringValue(s) => Some(s)
+    case _                    => None
+  }
+
+  implicit val zdt: FromQueryValue[ZonedDateTime] = string.andThen(s => Try(ZonedDateTime.parse(s)).toOption)
+
+  implicit def opt[A: FromQueryValue]: FromQueryValue[Option[A]] = FromQueryValue[A].attempt(_).map(Option(_))
+
+  implicit def list[A: FromQueryValue]: FromQueryValue[List[A]] = {
+    case Value.ListValue(elems) => elems.traverse(x => FromQueryValue[A].attempt(x))
+    case _                      => None
+  }
+}
+
 final case class EffectfulQueryBuilderArg1[F[_], Arg1: ClassTag](query: String, arg: Argument[Arg1]) {
 
   def withInt(name: String)    = withArg[Int](name, { case Value.IntValue(s) => s })
@@ -42,7 +71,12 @@ final case class EffectfulQueryBuilderArg1[F[_], Arg1: ClassTag](query: String, 
   def withString(name: String) = withArg[String](name, { case Value.StringValue(s) => s })
   def withFloat(name: String)  = withArg[Double](name, { case Value.FloatValue(s) => s })
   def withBool(name: String)   = withArg[Boolean](name, { case Value.BooleanValue(s) => s })
-  def withArg[Arg: ClassTag](name: String, extractor: PartialFunction[Value, Arg]) =
+  def withCustomArg[Arg: FromQueryValue: ClassTag](name: String) =
+    withArg[Arg](name, FromQueryValue.toPartialFunction[Arg])
+  def withArg[Arg: ClassTag](
+      name: String,
+      extractor: PartialFunction[Value, Arg]
+  ): EffectfulQueryBuilderArg2[F, Arg1, Arg] =
     EffectfulQueryBuilderArg2(query, arg, Argument(name, extractor))
 
   def build[A: CursorBuilder](process: Arg1 => F[A])(implicit f: MonadThrow[F]): EffectfulQuery[F] =

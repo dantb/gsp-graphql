@@ -9,7 +9,6 @@ import cats.tests.CatsSuite
 import cats.effect.unsafe.implicits.global
 import cats.effect.IO
 import java.time.ZonedDateTime
-import scala.util.Try
 import io.circe.Json
 
 // Higher-level example to demonstrate building a read-only mapping backed by effectful functions
@@ -86,30 +85,14 @@ final class BlogMappingSpec extends CatsSuite {
       }
     """
 
-    val extractDateTime: PartialFunction[Value, Option[ZonedDateTime]] = PartialFunction
-      .fromFunction[Value, Option[ZonedDateTime]] {
-        case Value.StringValue(a) => Try(ZonedDateTime.parse(a)).toOption
-        case _                    => None
-      }
+    val blogsQuery: EffectfulQuery[IO] = EffectfulQueryBuilder
+      .noArgs[IO]("blogs")
+      .withCustomArg[Option[ZonedDateTime]]("before")
+      .withCustomArg[Option[List[String]]]("ids")
+      .build(blogsProcessor)
 
-    val extractIds: PartialFunction[Value, Option[List[String]]] = PartialFunction
-      .fromFunction[Value, Option[List[String]]] {
-        case Value.ListValue(elems) => elems.traverse { case Value.StringValue(s) => Some(s); case _ => None }
-        case _                      => None
-      }
-
-    val blogsQuery = EffectfulQuery.arg2[IO, Option[ZonedDateTime], Option[List[String]], List[Blog]](
-      "blogs",
-      blogsProcessor,
-      "before",
-      "ids",
-      extractDateTime,
-      extractIds
-    )
-
-    // val blogsQuery: EffectfulQuery[IO] = EffectfulQueryBuilder.noArgs[IO]("blogs")
-
-    val blogQuery: EffectfulQuery[IO] = EffectfulQueryBuilder.noArgs[IO]("blog").withString("id").build(blogProcessor(_))
+    val blogQuery: EffectfulQuery[IO] =
+      EffectfulQueryBuilder.noArgs[IO]("blog").withString("id").build(blogProcessor(_))
 
     val thingy: GenericMapping[IO] =
       EffectfulMappingBuilder
