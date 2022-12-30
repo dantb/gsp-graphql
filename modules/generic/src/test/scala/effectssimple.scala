@@ -85,17 +85,17 @@ final class BlogMappingSpec extends CatsSuite {
       }
     """
 
-    val blogsQuery: EffectfulQuery[IO] = EffectfulQueryBuilder
-      .noArgs[IO]("blogs")
-      .withCustomArg[Option[ZonedDateTime]]("before")
-      .withCustomArg[Option[List[String]]]("ids")
-      .build(blogsProcessor)
+    val blogsQuery: EffQuery[IO] = EffQueryBuilder
+      .noArgs[IO]
+      .withArg[Option[ZonedDateTime]]("before")
+      .withArg[Option[List[String]]]("ids")
+      .build("blogs", blogsProcessor(_, _))
 
-    val blogQuery: EffectfulQuery[IO] =
-      EffectfulQueryBuilder.noArgs[IO]("blog").withString("id").build(blogProcessor(_))
+    val blogQuery: EffQuery[IO] =
+      EffQueryBuilder.noArgs[IO].withString("id").build("blog", blogProcessor(_))
 
     val thingy: GenericMapping[IO] =
-      EffectfulMappingBuilder
+      EffMappingBuilder
         .single[IO](blogQuery)
         .withQuery(blogsQuery)
         .build(BlogMapping.schema)

@@ -7,9 +7,9 @@ package generic
 import edu.gemini.grackle._
 import cats._
 
-final case class EffectfulMappingBuilder[F[_]](queries: List[EffectfulQuery[F]]) {
+final case class EffMappingBuilder[F[_]](queries: List[EffQuery[F]]) {
 
-  def withQuery(eq: EffectfulQuery[F]): EffectfulMappingBuilder[F] = EffectfulMappingBuilder(eq :: queries)
+  def withQuery(eq: EffQuery[F]): EffMappingBuilder[F] = EffMappingBuilder(eq :: queries)
 
   // NOTE - there's an assumption that schema must have a Query top-level type. This would go in docs.
   def build(schema0: Schema)(implicit m: Monad[F]): GenericMapping[F] = {
@@ -27,7 +27,7 @@ final case class EffectfulMappingBuilder[F[_]](queries: List[EffectfulQuery[F]])
   }
 }
 
-object EffectfulMappingBuilder {
-  def empty[F[_]]: EffectfulMappingBuilder[F] = EffectfulMappingBuilder(Nil)
-  def single[F[_]](eq: EffectfulQuery[F])     = EffectfulMappingBuilder(List(eq))
+object EffMappingBuilder {
+  def empty[F[_]]: EffMappingBuilder[F] = EffMappingBuilder(Nil)
+  def single[F[_]](eq: EffQuery[F])     = EffMappingBuilder(List(eq))
 }
