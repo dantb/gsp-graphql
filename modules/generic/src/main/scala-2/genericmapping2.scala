@@ -33,7 +33,7 @@ trait ScalaVersionSpecificGenericMappingLike[F[_]] extends Mapping[F] { self: Ge
       ): MkObjectCursorBuilder[T] =
       new MkObjectCursorBuilder[T] {
         def apply(tpe: Type): ObjectCursorBuilder[T] = {
-          def fieldMap: Map[String, (Context, T, Option[Cursor], Env) => Result[Cursor]] = {
+          def fieldMap: FieldMap[T] = {
             val keys: List[String] = unsafeToList[Symbol](keys0()).map(_.name)
             val elems = unsafeToList[CursorBuilder[Any]](elems0.instances)
             keys.zip(elems.zipWithIndex).map {
