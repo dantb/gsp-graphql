@@ -33,6 +33,10 @@ class QueryInterpreter[F[_]](mapping: Mapping[F]) {
   def run(query: Query, rootTpe: Type, env: Env): Stream[F,Json] =
     runRoot(query, rootTpe, env).map(QueryInterpreter.mkResponse)
 
+
+  private case class PureQuery(query: Query)
+  private case class EffectfulQuery(query: Query, rootEffect: mapping.RootEffect)
+
   /** Interpret `query` with expected type `rootTpe`.
    *
    *  The query is fully interpreted, including deferred or staged
@@ -42,9 +46,6 @@ class QueryInterpreter[F[_]](mapping: Mapping[F]) {
    */
   def runRoot(query: Query, rootTpe: Type, env: Env): Stream[F,Result[Json]] = {
     import mapping.RootEffect
-
-    case class PureQuery(query: Query)
-    case class EffectfulQuery(query: Query, rootEffect: RootEffect)
 
     val rootContext = Context(rootTpe)
 
@@ -93,15 +94,8 @@ class QueryInterpreter[F[_]](mapping: Mapping[F]) {
           }
 
         val effectfulResults: Stream[F,Result[ProtoJson]] =
-          if(effectfulQueries.isEmpty) Stream.empty
-          else {
-            effectfulQueries.foldMap {
-              case EffectfulQuery(query, RootEffect(fieldName, effect)) =>
-                effect(query, rootTpe / fieldName, env.addFromQuery(query)).map(_.flatMap {
-                  case (q, c) => runValue(q, rootTpe, c)
-                })
-            }
-          }
+          if (effectfulQueries.isEmpty) Stream.empty
+          else runQueries(rootTpe, env, effectfulQueries)
 
         (pureResults ++ effectfulResults).reduceSemigroup.map {
           case Ior.Left(errs) => Ior.Both(errs, ProtoJson.fromJson(Json.Null))
@@ -114,6 +108,14 @@ class QueryInterpreter[F[_]](mapping: Mapping[F]) {
       value  <- IorT(QueryInterpreter.complete[F](pvalue))
     } yield value).value
   }
+
+  private def runQueries(rootTpe: Type, env: Env, queries: List[EffectfulQuery]): Stream[F,Result[ProtoJson]] =
+    queries.foldMap {
+      case EffectfulQuery(query, mapping.RootEffect(fieldName, effect)) =>
+        effect(query, rootTpe / fieldName, env.addFromQuery(query)).map(_.flatMap {
+          case (q, c) => runValue(q, rootTpe, c)
+        })
+    }
 
   /** Interpret `query` with expected type `rootTpe`.
    *
